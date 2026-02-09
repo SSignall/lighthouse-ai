@@ -1,5 +1,5 @@
 [Unit]
-Description=Open Claw - vLLM Tool Call Proxy
+Description=Local Claw Plus - vLLM Tool Call Proxy
 After=network.target docker.service
 Wants=docker.service
 

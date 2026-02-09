@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ═══════════════════════════════════════════════════════════════
-Open Claw Session Manager - vLLM Tool Call Proxy
+Local Claw Plus Session Manager - vLLM Tool Call Proxy
 https://github.com/Lightheartdevs/Open-Claw-Session-Manager
 
 Makes local model tool calling actually work.
@@ -483,7 +483,7 @@ def health():
 @app.route('/')
 def root():
     return {
-        'service': 'Open Claw Session Manager - vLLM Tool Call Proxy',
+        'service': 'Local Claw Plus Session Manager - vLLM Tool Call Proxy',
         'version': '2.0.0',
         'vllm_url': VLLM_URL,
         'supported_models': [

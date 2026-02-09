@@ -1,5 +1,5 @@
 [Unit]
-Description=Open Claw Session Cleanup
+Description=Local Claw Plus Session Cleanup
 After=network.target docker.service
 
 [Service]

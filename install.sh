@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# Open Claw Session Manager - Installer
+# Local Claw Plus Session Manager - Installer
 # https://github.com/Lightheartdevs/Open-Claw-Session-Manager
 #
 # Usage:
@@ -57,7 +57,7 @@ done
 # ── Banner ─────────────────────────────────────────────────────
 echo ""
 echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
-echo -e "${CYAN}  Open Claw Session Manager - Installer${NC}"
+echo -e "${CYAN}  Local Claw Plus Session Manager - Installer${NC}"
 echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -122,7 +122,7 @@ echo ""
 
 # ── Uninstall ──────────────────────────────────────────────────
 if [ "$UNINSTALL" = true ]; then
-    info "Uninstalling Open Claw Session Manager..."
+    info "Uninstalling Local Claw Plus Session Manager..."
 
     if systemctl is-active --quiet openclaw-session-cleanup.timer 2>/dev/null; then
         sudo systemctl stop openclaw-session-cleanup.timer

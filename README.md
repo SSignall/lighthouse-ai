@@ -1,4 +1,4 @@
-# Open Claw Session Manager
+# Local Claw Plus Session Manager
 
 **Your agents never crash from context overflow again.**
 

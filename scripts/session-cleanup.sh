@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# Open Claw Session Manager - Session Cleanup Script
+# Local Claw Plus Session Manager - Session Cleanup Script
 # https://github.com/Lightheartdevs/Open-Claw-Session-Manager
 #
 # Prevents context overflow crashes by automatically managing
