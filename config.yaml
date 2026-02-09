@@ -1,0 +1,64 @@
+# Open Claw Session Manager - Configuration
+# https://github.com/Lightheartdevs/Open-Claw-Session-Manager
+
+# ─────────────────────────────────────────────
+# Session Cleanup Settings
+# ─────────────────────────────────────────────
+session_cleanup:
+  # Enable automatic session cleanup
+  enabled: true
+
+  # Path to your OpenClaw data directory
+  # Default: ~/.openclaw
+  openclaw_dir: "~/.openclaw"
+
+  # Agent path relative to openclaw_dir
+  # Default: agents/main/sessions
+  sessions_path: "agents/main/sessions"
+
+  # Maximum session file size in bytes before it gets nuked
+  # When a session exceeds this, the file is deleted and its reference
+  # removed from sessions.json, forcing a fresh session on next message.
+  #
+  # Recommended values by model context window:
+  #   8K context  → 64000   (64KB)
+  #   16K context → 128000  (128KB)
+  #   32K context → 256000  (250KB)  ← default
+  #   64K context → 512000  (500KB)
+  #   128K context → 1024000 (1MB)
+  max_session_size: 256000
+
+  # How often to run cleanup (in minutes)
+  # Recommended: context_window / 500 (e.g., 32K → 60 min)
+  interval_minutes: 60
+
+  # Delay after boot before first cleanup run
+  boot_delay_minutes: 5
+
+# ─────────────────────────────────────────────
+# vLLM Tool Call Proxy Settings
+# ─────────────────────────────────────────────
+tool_proxy:
+  # Enable the vLLM tool call proxy
+  # Required if you're running local models (Qwen, Mistral, etc.)
+  # that output tool calls as <tools> tags instead of OpenAI format
+  enabled: true
+
+  # Port for the proxy to listen on
+  port: 8003
+
+  # Bind address (0.0.0.0 = all interfaces, 127.0.0.1 = localhost only)
+  host: "0.0.0.0"
+
+  # Your vLLM server URL
+  vllm_url: "http://localhost:8000"
+
+  # Log file location
+  log_file: "~/vllm-proxy.log"
+
+# ─────────────────────────────────────────────
+# System User
+# ─────────────────────────────────────────────
+# The Linux user that runs OpenClaw (used for systemd services)
+# install.sh will auto-detect this, but you can override it here
+system_user: ""
