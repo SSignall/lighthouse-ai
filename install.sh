@@ -1,7 +1,7 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
 # Local Claw Plus Session Manager - Installer
-# https://github.com/Lightheartdevs/Open-Claw-Session-Manager
+# https://github.com/Lightheartdevs/Local-Claw-Plus-Session-Manager
 #
 # Usage:
 #   ./install.sh                    # Interactive install

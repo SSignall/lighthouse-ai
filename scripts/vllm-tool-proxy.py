@@ -2,7 +2,7 @@
 """
 ═══════════════════════════════════════════════════════════════
 Local Claw Plus Session Manager - vLLM Tool Call Proxy
-https://github.com/Lightheartdevs/Open-Claw-Session-Manager
+https://github.com/Lightheartdevs/Local-Claw-Plus-Session-Manager
 
 Makes local model tool calling actually work.
 

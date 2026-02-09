@@ -41,8 +41,8 @@ A transparent proxy between OpenClaw and vLLM that post-processes responses to e
 ### Linux
 
 ```bash
-git clone https://github.com/Lightheartdevs/Open-Claw-Session-Manager.git
-cd Open-Claw-Session-Manager
+git clone https://github.com/Lightheartdevs/Local-Claw-Plus-Session-Manager.git
+cd Local-Claw-Plus-Session-Manager
 
 # Edit config for your setup
 cp config.yaml config.yaml.bak
@@ -56,8 +56,8 @@ chmod +x install.sh
 ### Windows (PowerShell)
 
 ```powershell
-git clone https://github.com/Lightheartdevs/Open-Claw-Session-Manager.git
-cd Open-Claw-Session-Manager
+git clone https://github.com/Lightheartdevs/Local-Claw-Plus-Session-Manager.git
+cd Local-Claw-Plus-Session-Manager
 
 # Edit config for your setup
 notepad config.yaml
@@ -233,7 +233,7 @@ Lower `max_session_size` and `interval_minutes` in `config.yaml`, then reinstall
 ## Project Structure
 
 ```
-Open-Claw-Session-Manager/
+Local-Claw-Plus-Session-Manager/
 ├── config.yaml                     # Configuration file
 ├── install.sh                      # Linux installer
 ├── install.ps1                     # Windows installer

@@ -1,6 +1,6 @@
 # ═══════════════════════════════════════════════════════════════
 # Local Claw Plus Session Manager - Windows Installer
-# https://github.com/Lightheartdevs/Open-Claw-Session-Manager
+# https://github.com/Lightheartdevs/Local-Claw-Plus-Session-Manager
 #
 # Usage:
 #   .\install.ps1                     # Interactive install
