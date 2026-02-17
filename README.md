@@ -29,6 +29,11 @@ Battle-tested `openclaw.json` and `models.json` templates with the critical `com
 ### Workspace Templates
 Starter personality files (`SOUL.md`, `IDENTITY.md`, `TOOLS.md`, `MEMORY.md`) that OpenClaw injects into every agent session. Customize your agent's personality, knowledge, and working memory.
 
+### Memory Shepherd
+Periodic memory reset for persistent LLM agents. Agents accumulate scratch notes in `MEMORY.md` during operation — Memory Shepherd archives those notes and restores the file to a curated baseline on a schedule. Keeps agents on-mission by preventing context drift, memory bloat, and self-modification of instructions.
+
+Defines a `---` separator convention: everything above is operator-controlled identity (rules, capabilities, pointers), everything below is agent scratch space that gets archived and cleared.
+
 ### Architecture Docs
 Deep-dive documentation on how OpenClaw talks to vLLM, why the proxy exists, how session files work, and the five failure points that kill local setups.
 
@@ -234,6 +239,14 @@ LightHeart-OpenClaw/
 │   ├── openclaw-session-cleanup.timer
 │   ├── vllm-tool-proxy.service
 │   └── token-spy@.service             # Token Spy (templated per-agent)
+├── memory-shepherd/                    # Periodic memory reset for agents
+│   ├── memory-shepherd.sh             # Config-driven reset script
+│   ├── memory-shepherd.conf.example   # Example agent config
+│   ├── install.sh                     # Systemd timer installer
+│   ├── uninstall.sh                   # Systemd timer removal
+│   ├── baselines/                     # Baseline MEMORY.md templates
+│   └── docs/
+│       └── WRITING-BASELINES.md       # Guide to writing effective baselines
 ├── docs/
 │   ├── SETUP.md                       # Full local setup guide
 │   ├── ARCHITECTURE.md                # How it all fits together
@@ -307,7 +320,7 @@ See [docs/SETUP.md](docs/SETUP.md) for the full troubleshooting guide. Quick hit
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+Apache 2.0 — see [LICENSE](LICENSE)
 
 ---
 
