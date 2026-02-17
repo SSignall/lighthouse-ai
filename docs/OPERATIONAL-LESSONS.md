@@ -292,3 +292,90 @@ that they answer different questions:
 - Failed retries: Token Spy shows the cost of attempts, vLLM shows the load
 
 Both are useful. Neither replaces the other.
+
+---
+
+## Background GPU Automation
+
+A GPU running local models for agents sits idle most of the time. Agents think
+in bursts — a few seconds of computation, then minutes of silence while they
+read files, run commands, or wait. Those idle cycles can do real work.
+
+### Commit Watchdog
+
+Every agent commit gets automatically reviewed by the local model.
+
+```
+Every 5 minutes:
+  1. Check for new commits from any agent
+  2. For each new commit: pull the diff
+  3. Send to local model: "Are there broken imports? Obvious bugs?
+     Security issues? Anything suspicious?"
+  4. Post the review to the shared channel
+```
+
+At ~500 agent commits per day and ~5 seconds per review, this adds about 45
+minutes of GPU time daily. Free QA for every push.
+
+The reviews aren't deep architectural analysis — they're fast sanity checks.
+Catching a broken import before it wastes another agent's time pays for itself
+immediately.
+
+### Codebase Indexer
+
+Once a day (e.g., 5am before the morning briefing), walk the entire codebase:
+
+1. Split files into chunks
+2. Generate embedding vectors for each chunk
+3. Store in a vector database (e.g., Qdrant)
+4. Content-hash files so unchanged files get skipped on subsequent runs
+
+This enables **semantic search** — agents can ask "find me the code that
+handles authentication" instead of relying on keyword matching. The index
+stays fresh because it rebuilds daily.
+
+### Test Generator
+
+When the commit watchdog detects new source files without corresponding test
+files:
+
+1. Read the source file
+2. Send to local model: "Write pytest-style test stubs covering happy path,
+   edge cases, and error handling"
+3. Save to a staging area with a `# NEEDS REVIEW` header
+4. Never commit automatically — these are starting points, not finished tests
+
+This turns idle GPU cycles into test coverage scaffolding. A human or agent
+can refine the stubs, but the hard part — reading the code and thinking about
+what to test — is already done.
+
+### Briefing Enrichment
+
+Before generating a daily briefing (see the supervisor pattern in
+[MULTI-AGENT-PATTERNS.md](MULTI-AGENT-PATTERNS.md)), pass raw health data
+through the local model for pre-analysis:
+
+- Error classification (transient vs. systemic)
+- Root cause suggestions
+- Trend detection (is cost increasing? are errors clustering?)
+
+This adds ~30 seconds of GPU time but makes the briefing significantly more
+actionable than raw metrics.
+
+### GPU Duty Cycle
+
+With all four background systems running alongside agent workloads, expect
+15-50% GPU utilization depending on agent activity. Not bad for cycles that
+would otherwise be wasted.
+
+| System | GPU Time/Day | Trigger |
+|---|---|---|
+| Commit watchdog | ~45 min | Every 5 min (new commits) |
+| Codebase indexer | ~15 min | Once daily (5am) |
+| Test generator | ~10 min | On new files (via watchdog) |
+| Briefing enrichment | ~1 min | Once daily (before briefing) |
+
+None of these block agent work — they run during idle windows. If an agent
+needs the GPU, inference requests from the background systems simply queue
+behind the agent's requests (vLLM's continuous batching handles this
+transparently).

@@ -131,6 +131,61 @@ WantedBy=multi-user.target
 
 `Restart=always` ensures the guardian itself restarts if killed.
 
+### In Production
+
+A production guardian protecting a 3-agent system monitors ~42 resources across
+all four tiers, checking every 60 seconds. The resources include:
+
+- 3 agent gateway processes
+- Tool proxy, vLLM inference engine
+- Token Spy instances (one per cloud agent)
+- Memory Shepherd timers
+- Session cleanup timers
+- Supervisor bot process
+- ~30+ protected config and baseline files
+
+The guardian config file is a declarative "desired state" document — it lists
+every file hash and service that should be running. Each check cycle compares
+current state against desired state and takes corrective action.
+
+### Custom Health Checks
+
+Standard service monitoring (is the process running?) misses application-level
+failures. Custom health checks catch patterns that `systemctl status` can't:
+
+**Example: GPU Storm Recovery**
+
+When multiple agents spawn sub-agents simultaneously, the GPU gets flooded.
+One agent's requests start timing out, and its session gets stuck — but the
+process is still "running" as far as systemd knows.
+
+A custom health check detects this:
+
+```
+1. Check agent's gateway logs for timeout errors
+2. Check GPU queue depth — has the storm passed?
+3. If BOTH: (agent had timeouts) AND (GPU load is now normal)
+   → Restart the stuck agent's gateway
+   → Agent comes back online within ~2 minutes
+```
+
+This pattern — "detect the specific failure condition AND confirm the root
+cause has cleared" — prevents premature restarts that would fail for the same
+reason.
+
+### Incremental Backups
+
+Beyond Guardian's config snapshots, run incremental server backups on a
+separate timer (every 15 minutes):
+
+```bash
+rsync -a --link-dest="$PREV_SNAPSHOT" "$SOURCE/" "$SNAPSHOT_DIR/"
+```
+
+Hardlinks mean unchanged files don't take extra space — hundreds of snapshots
+fit in minimal disk. If something goes catastrophically wrong at 2pm, roll
+back to the 1:45pm state with a single command.
+
 ---
 
 ## Autonomy Tiers
@@ -238,14 +293,23 @@ Session Level (keeps agents running):
 
 System Level (keeps infrastructure intact):
   ├── Guardian             — monitors services, auto-recovers failures
+  ├── Custom Health Checks — catches application-level failures (GPU storms, etc.)
   ├── Autonomy Tiers       — explicit permission boundaries
   ├── Baseline Integrity   — immutable + checksummed identity files
   └── Self-Modification Rule — never hot-work your own infrastructure
+
+Operational Level (keeps humans informed):
+  ├── Supervisor Agent     — monitors team health, triggers resets, daily briefings
+  ├── Incremental Backups  — 15-minute snapshots, point-in-time recovery
+  └── Background Automation — commit watchdog, codebase indexer, test generator
 ```
 
 Session tools are documented in the main [README](../README.md),
 [TOKEN-SPY.md](TOKEN-SPY.md), and [memory-shepherd/README.md](../memory-shepherd/README.md).
-This doc covers the system-level complement.
+The supervisor pattern and background automation are in
+[MULTI-AGENT-PATTERNS.md](MULTI-AGENT-PATTERNS.md) and
+[OPERATIONAL-LESSONS.md](OPERATIONAL-LESSONS.md).
+This doc covers the system-level layer.
 
 **The goal is defense in depth.** No single protection catches everything.
 The session watchdog catches context overflow but not infrastructure damage.
