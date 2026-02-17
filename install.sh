@@ -65,12 +65,31 @@ echo -e "${CYAN}  LightHeart OpenClaw - Installer${NC}"
 echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
 echo ""
 
-# ── Parse config (basic YAML parser — no dependencies needed) ──
+# ── Parse config (section-aware YAML parser — no dependencies needed) ──
+# Usage: parse_yaml "section.key" "default"  — reads key within a section
+#        parse_yaml "key" "default"           — reads top-level key (legacy)
 parse_yaml() {
-    local key="$1"
+    local input="$1"
     local default="$2"
-    local value
-    value=$(grep -E "^\s*${key}:" "$CONFIG_FILE" 2>/dev/null | head -1 | sed 's/.*:\s*//' | sed 's/\s*#.*//' | sed 's/^"//' | sed 's/"$//' | sed "s/^'//" | sed "s/'$//" | xargs)
+    local section="" key="" value=""
+
+    if [[ "$input" == *.* ]]; then
+        section="${input%%.*}"
+        key="${input#*.}"
+    else
+        key="$input"
+    fi
+
+    if [ -n "$section" ]; then
+        # Extract lines between "section:" and the next top-level key (non-indented)
+        value=$(sed -n "/^${section}:/,/^[a-zA-Z_]/{/^${section}:/d;/^[a-zA-Z_]/d;p;}" "$CONFIG_FILE" \
+            | grep -E "^\s+${key}:" | head -1 \
+            | sed 's/.*:\s*//' | sed 's/\s*#.*//' | sed 's/^"//' | sed 's/"$//' | sed "s/^'//" | sed "s/'$//" | xargs)
+    else
+        value=$(grep -E "^\s*${key}:" "$CONFIG_FILE" 2>/dev/null | head -1 \
+            | sed 's/.*:\s*//' | sed 's/\s*#.*//' | sed 's/^"//' | sed 's/"$//' | sed "s/^'//" | sed "s/'$//" | xargs)
+    fi
+
     if [ -z "$value" ] || [ "$value" = '""' ] || [ "$value" = "''" ]; then
         echo "$default"
     else
@@ -88,34 +107,34 @@ fi
 info "Loading config from $CONFIG_FILE"
 
 # Session cleanup settings
-CLEANUP_ENABLED=$(parse_yaml "enabled" "true")
-OPENCLAW_DIR=$(parse_yaml "openclaw_dir" "~/.openclaw")
+CLEANUP_ENABLED=$(parse_yaml "session_cleanup.enabled" "true")
+OPENCLAW_DIR=$(parse_yaml "session_cleanup.openclaw_dir" "~/.openclaw")
 OPENCLAW_DIR="${OPENCLAW_DIR/#\~/$HOME}"
-SESSIONS_PATH=$(parse_yaml "sessions_path" "agents/main/sessions")
-MAX_SESSION_SIZE=$(parse_yaml "max_session_size" "256000")
-INTERVAL_MINUTES=$(parse_yaml "interval_minutes" "60")
-BOOT_DELAY=$(parse_yaml "boot_delay_minutes" "5")
+SESSIONS_PATH=$(parse_yaml "session_cleanup.sessions_path" "agents/main/sessions")
+MAX_SESSION_SIZE=$(parse_yaml "session_cleanup.max_session_size" "256000")
+INTERVAL_MINUTES=$(parse_yaml "session_cleanup.interval_minutes" "60")
+BOOT_DELAY=$(parse_yaml "session_cleanup.boot_delay_minutes" "5")
 
 # Proxy settings
-PROXY_ENABLED=$(parse_yaml "enabled" "true")
-PROXY_PORT=$(parse_yaml "port" "8003")
-PROXY_HOST=$(parse_yaml "host" "0.0.0.0")
-VLLM_URL=$(parse_yaml "vllm_url" "http://localhost:8000")
-LOG_FILE=$(parse_yaml "log_file" "~/vllm-proxy.log")
+PROXY_ENABLED=$(parse_yaml "tool_proxy.enabled" "true")
+PROXY_PORT=$(parse_yaml "tool_proxy.port" "8003")
+PROXY_HOST=$(parse_yaml "tool_proxy.host" "0.0.0.0")
+VLLM_URL=$(parse_yaml "tool_proxy.vllm_url" "http://localhost:8000")
+LOG_FILE=$(parse_yaml "tool_proxy.log_file" "~/vllm-proxy.log")
 LOG_FILE="${LOG_FILE/#\~/$HOME}"
 
 # Token Spy settings
-TS_ENABLED=$(parse_yaml "enabled" "false")
-TS_AGENT_NAME=$(parse_yaml "agent_name" "my-agent")
-TS_PORT=$(parse_yaml "port" "9110")
-TS_HOST=$(parse_yaml "host" "0.0.0.0")
-TS_ANTHROPIC_UPSTREAM=$(parse_yaml "anthropic_upstream" "https://api.anthropic.com")
-TS_OPENAI_UPSTREAM=$(parse_yaml "openai_upstream" "")
-TS_API_PROVIDER=$(parse_yaml "api_provider" "anthropic")
-TS_DB_BACKEND=$(parse_yaml "db_backend" "sqlite")
-TS_SESSION_CHAR_LIMIT=$(parse_yaml "session_char_limit" "200000")
-TS_AGENT_SESSION_DIRS=$(parse_yaml "agent_session_dirs" "")
-TS_LOCAL_MODEL_AGENTS=$(parse_yaml "local_model_agents" "")
+TS_ENABLED=$(parse_yaml "token_spy.enabled" "false")
+TS_AGENT_NAME=$(parse_yaml "token_spy.agent_name" "my-agent")
+TS_PORT=$(parse_yaml "token_spy.port" "9110")
+TS_HOST=$(parse_yaml "token_spy.host" "0.0.0.0")
+TS_ANTHROPIC_UPSTREAM=$(parse_yaml "token_spy.anthropic_upstream" "https://api.anthropic.com")
+TS_OPENAI_UPSTREAM=$(parse_yaml "token_spy.openai_upstream" "")
+TS_API_PROVIDER=$(parse_yaml "token_spy.api_provider" "anthropic")
+TS_DB_BACKEND=$(parse_yaml "token_spy.db_backend" "sqlite")
+TS_SESSION_CHAR_LIMIT=$(parse_yaml "token_spy.session_char_limit" "200000")
+TS_AGENT_SESSION_DIRS=$(parse_yaml "token_spy.agent_session_dirs" "")
+TS_LOCAL_MODEL_AGENTS=$(parse_yaml "token_spy.local_model_agents" "")
 
 # System user
 SYSTEM_USER=$(parse_yaml "system_user" "")

@@ -163,6 +163,24 @@ The most important four lines in the entire repo. Without them, OpenClaw sends p
 
 These are already set in `configs/openclaw.json`. Just copy it and go.
 
+### Gateway Config (Security Note)
+
+The golden config includes gateway settings for LAN access:
+
+```json
+"gateway": {
+  "bind": "lan",
+  "controlUi": {
+    "allowInsecureAuth": true,
+    "dangerouslyDisableDeviceAuth": true
+  }
+}
+```
+
+**`dangerouslyDisableDeviceAuth: true`** — Disables the device authorization flow that normally requires confirming new devices via the OpenClaw UI. Set to `true` here because local/headless setups (SSH, systemd) can't complete the interactive auth prompt. **If you expose your gateway to the internet, set this to `false`.**
+
+**`allowInsecureAuth: true`** — Allows HTTP (non-HTTPS) auth on LAN. Safe for local networks, not for public-facing deployments.
+
 ---
 
 ## How It Works
