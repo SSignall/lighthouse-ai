@@ -1,7 +1,7 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# Local Claw Plus Session Manager - Session Cleanup Script
-# https://github.com/Lightheartdevs/Local-Claw-Plus-Session-Manager
+# LightHeart OpenClaw - Session Cleanup Script
+# https://github.com/Light-Heart-Labs/LightHeart-OpenClaw
 #
 # Prevents context overflow crashes by automatically managing
 # session file lifecycle. When a session file exceeds the size

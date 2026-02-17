@@ -1,7 +1,7 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# Local Claw Plus Session Manager - Installer
-# https://github.com/Lightheartdevs/Local-Claw-Plus-Session-Manager
+# LightHeart OpenClaw - Installer
+# https://github.com/Light-Heart-Labs/LightHeart-OpenClaw
 #
 # Usage:
 #   ./install.sh                    # Interactive install
@@ -57,7 +57,7 @@ done
 # ── Banner ─────────────────────────────────────────────────────
 echo ""
 echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
-echo -e "${CYAN}  Local Claw Plus Session Manager - Installer${NC}"
+echo -e "${CYAN}  LightHeart OpenClaw - Installer${NC}"
 echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -122,7 +122,7 @@ echo ""
 
 # ── Uninstall ──────────────────────────────────────────────────
 if [ "$UNINSTALL" = true ]; then
-    info "Uninstalling Local Claw Plus Session Manager..."
+    info "Uninstalling LightHeart OpenClaw..."
 
     if systemctl is-active --quiet openclaw-session-cleanup.timer 2>/dev/null; then
         sudo systemctl stop openclaw-session-cleanup.timer

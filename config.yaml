@@ -1,5 +1,5 @@
-# Local Claw Plus Session Manager - Configuration
-# https://github.com/Lightheartdevs/Local-Claw-Plus-Session-Manager
+# LightHeart OpenClaw - Configuration
+# https://github.com/Light-Heart-Labs/LightHeart-OpenClaw
 
 # ─────────────────────────────────────────────
 # Session Cleanup Settings
@@ -40,8 +40,8 @@ session_cleanup:
 # ─────────────────────────────────────────────
 tool_proxy:
   # Enable the vLLM tool call proxy
-  # Required if you're running local models (Qwen, Mistral, etc.)
-  # that output tool calls as <tools> tags instead of OpenAI format
+  # Handles SSE re-wrapping, tool call extraction, response cleaning,
+  # and loop protection for local models
   enabled: true
 
   # Port for the proxy to listen on
@@ -55,6 +55,9 @@ tool_proxy:
 
   # Log file location
   log_file: "~/vllm-proxy.log"
+
+  # Maximum tool calls per conversation before aborting (loop protection)
+  max_tool_calls: 500
 
 # ─────────────────────────────────────────────
 # System User

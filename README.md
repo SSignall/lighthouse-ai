@@ -1,51 +1,43 @@
-# Local Claw Plus Session Manager
+# LightHeart OpenClaw
 
 **Your agents never crash from context overflow again.**
 
-An automated session lifecycle manager and local model tool-calling fix for [OpenClaw](https://openclaw.io) agents. Built for teams running local models (Qwen, Mistral, Llama) where context windows fill up and tool calling breaks.
+An open source toolkit for [OpenClaw](https://openclaw.io) agents. Session lifecycle management, local model tool-calling fixes, golden configs, and everything else you need to run OpenClaw agents that don't fall over.
 
 ---
 
-## The Problem
+## What's Inside
 
-If you're running OpenClaw agents with local models, you've hit these walls:
+### Session Watchdog
+A lightweight daemon that monitors `.jsonl` session files and automatically cleans up bloated ones before they hit the context ceiling. Runs on a timer, catches danger-zone sessions, deletes them, and removes their references from `sessions.json` so the gateway seamlessly creates fresh ones.
 
-### Context Overflow Crashes
-Local models have fixed context windows (8K-128K tokens). Long-running agents — especially on Discord — accumulate conversation history in `.jsonl` session files until they exceed the model's limit. When that happens: **crash. Every time.**
+**The agent doesn't even notice.** It just gets a clean context window mid-conversation. No more `Context overflow: prompt too large for the model` crashes.
 
-The agent can't clear its own session. The gateway doesn't auto-rotate. You get a `Context overflow: prompt too large for the model` error and the agent goes dark until you manually intervene.
+### vLLM Tool Call Proxy (v4)
+A transparent proxy between OpenClaw and vLLM that makes local model tool calling actually work. Handles SSE re-wrapping, tool call extraction from text, response cleaning, and loop protection.
 
-### Broken Tool Calling
-Qwen2.5-Coder (and similar models) output tool calls as `<tools>` tags in the content field. But vLLM's built-in hermes parser expects `<tool_call>` tags. The result: **subagents spawn, receive no tool calls, and die with 0 output tokens.**
+Without it, you get "No reply from agent" with 0 tokens. With it, your local agents just work.
 
-If you've seen `terminated` or `0 tokens` in your subagent logs — this is why.
+### Golden Configs
+Battle-tested `openclaw.json` and `models.json` templates with the critical `compat` block that prevents OpenClaw from sending parameters vLLM silently rejects. Getting these four flags wrong produces mysterious failures with no error messages — we figured them out so you don't have to.
 
----
+### Workspace Templates
+Starter personality files (`SOUL.md`, `IDENTITY.md`, `TOOLS.md`, `MEMORY.md`) that OpenClaw injects into every agent session. Customize your agent's personality, knowledge, and working memory.
 
-## The Solution
-
-### Session Autopilot
-A lightweight daemon that monitors session file sizes and automatically forces fresh sessions before they hit the context ceiling. Runs on a timer (default: every 60 minutes), catches bloated sessions, deletes them, and removes their references from `sessions.json` so the gateway seamlessly creates new ones.
-
-**The agent doesn't even notice.** It just gets a clean context window mid-conversation.
-
-### vLLM Tool Call Proxy
-A transparent proxy between OpenClaw and vLLM that post-processes responses to extract tool calls from `<tools>` tags and bare JSON, converting them to proper OpenAI `tool_calls` format. Handles both streaming (SSE) and non-streaming responses.
-
-**Your local model subagents just start working.**
+### Architecture Docs
+Deep-dive documentation on how OpenClaw talks to vLLM, why the proxy exists, how session files work, and the five failure points that kill local setups.
 
 ---
 
 ## Quick Start
 
-### Linux
+### Option 1: Full Install (Session Cleanup + Proxy)
 
 ```bash
-git clone https://github.com/Lightheartdevs/Local-Claw-Plus-Session-Manager.git
-cd Local-Claw-Plus-Session-Manager
+git clone https://github.com/Light-Heart-Labs/LightHeart-OpenClaw.git
+cd LightHeart-OpenClaw
 
 # Edit config for your setup
-cp config.yaml config.yaml.bak
 nano config.yaml
 
 # Install everything
@@ -53,35 +45,40 @@ chmod +x install.sh
 ./install.sh
 ```
 
-### Windows (PowerShell)
-
-```powershell
-git clone https://github.com/Lightheartdevs/Local-Claw-Plus-Session-Manager.git
-cd Local-Claw-Plus-Session-Manager
-
-# Edit config for your setup
-notepad config.yaml
-
-# Install everything
-.\install.ps1
-```
-
-### Install Options
+### Option 2: Just the Parts You Need
 
 ```bash
-# Linux
-./install.sh                      # Install everything
-./install.sh --cleanup-only       # Only session cleanup (no proxy)
-./install.sh --proxy-only         # Only tool proxy (no cleanup)
-./install.sh --config custom.yaml # Use custom config
-./install.sh --uninstall          # Remove everything
+# Session cleanup only (works with cloud models too)
+./install.sh --cleanup-only
+
+# Tool proxy only (for local vLLM setups)
+./install.sh --proxy-only
 
 # Windows
 .\install.ps1
 .\install.ps1 -CleanupOnly
 .\install.ps1 -ProxyOnly
-.\install.ps1 -Config custom.yaml
-.\install.ps1 -Uninstall
+```
+
+### Option 3: Running vLLM from Scratch
+
+If you're setting up a local model from zero, see [docs/SETUP.md](docs/SETUP.md) for the full walkthrough — vLLM, proxy, OpenClaw config, and testing.
+
+```bash
+# Start vLLM (needs NVIDIA GPU + Docker)
+./scripts/start-vllm.sh
+
+# Start the proxy
+pip3 install flask requests
+./scripts/start-proxy.sh
+
+# Configure OpenClaw
+cp configs/openclaw.json ~/.openclaw/openclaw.json
+rm -f ~/.openclaw/agents/main/agent/models.json
+export VLLM_API_KEY=vllm-local
+
+# Test
+openclaw agent --local --agent main -m 'What is 2+2?'
 ```
 
 ---
@@ -96,15 +93,16 @@ session_cleanup:
   openclaw_dir: "~/.openclaw"
   sessions_path: "agents/main/sessions"
   max_session_size: 256000    # 250KB — tune for your model
-  interval_minutes: 60        # How often to check
+  interval_minutes: 60
 
 tool_proxy:
   enabled: true
   port: 8003
   vllm_url: "http://localhost:8000"
+  max_tool_calls: 500         # Safety limit for loop protection
 ```
 
-### Sizing Guide
+### Session Size Guide
 
 | Model Context | Recommended max_session_size | Recommended interval |
 |---|---|---|
@@ -116,43 +114,27 @@ tool_proxy:
 
 ---
 
-## After Installation
+## The Compat Block (Read This)
 
-### Update OpenClaw Config
-
-If you installed the tool proxy, update your `openclaw.json` model providers to route through it:
+The most important four lines in the entire repo. Without them, OpenClaw sends parameters that vLLM silently rejects:
 
 ```json
-{
-  "models": {
-    "providers": {
-      "local-vllm": {
-        "baseUrl": "http://localhost:8003/v1",
-        "apiKey": "none",
-        "api": "openai-completions"
-      }
-    }
-  }
+"compat": {
+  "supportsStore": false,
+  "supportsDeveloperRole": false,
+  "supportsReasoningEffort": false,
+  "maxTokensField": "max_tokens"
 }
 ```
 
-Change `8003` to whatever port you configured in `config.yaml`.
+| Flag | What happens without it |
+|------|------------------------|
+| `supportsStore: false` | OpenClaw sends `store: false` → vLLM rejects the request |
+| `supportsDeveloperRole: false` | OpenClaw sends `developer` role → vLLM doesn't understand it |
+| `supportsReasoningEffort: false` | OpenClaw sends reasoning params → vLLM rejects them |
+| `maxTokensField: "max_tokens"` | OpenClaw sends `max_completion_tokens` → vLLM wants `max_tokens` |
 
-### Verify It's Working
-
-```bash
-# Check session cleanup timer (Linux)
-systemctl status openclaw-session-cleanup.timer
-
-# Watch cleanup logs
-journalctl -u openclaw-session-cleanup -f
-
-# Test proxy health
-curl http://localhost:8003/health
-
-# Watch proxy logs
-journalctl -u vllm-tool-proxy -f
-```
+These are already set in `configs/openclaw.json`. Just copy it and go.
 
 ---
 
@@ -161,101 +143,117 @@ journalctl -u vllm-tool-proxy -f
 ### Session Cleanup Flow
 
 ```
-Every 60 minutes:
-  1. Read sessions.json → get list of active session IDs
-  2. Delete .deleted.* and .bak* debris files
-  3. For each .jsonl file in sessions directory:
-     - If not in active list → delete (orphan cleanup)
-     - If active AND > max_session_size → delete file + remove
-       reference from sessions.json (forces fresh session)
-  4. Gateway detects missing session on next message → creates
-     new one automatically. Agent gets clean context.
+Every N minutes:
+  1. Read sessions.json → get active session IDs
+  2. Clean up .deleted.* and .bak* debris files
+  3. For each .jsonl session file:
+     - Not in active list → delete (orphan cleanup)
+     - Active AND > max_session_size → delete + remove from sessions.json
+  4. Gateway detects missing session → creates new one automatically
+  5. Agent gets clean context. Never notices the swap.
 ```
 
 ### Tool Proxy Flow
 
 ```
-OpenClaw request with tools:
-  1. Forward request to vLLM unchanged (no tool_choice forcing)
-  2. Receive response (streaming or non-streaming)
-  3. Check if content contains <tools>...</tools> tags or bare JSON
-  4. If found: extract tool calls, convert to OpenAI tool_calls
-     format, clean content field, set finish_reason=tool_calls
-  5. Return fixed response to OpenClaw
-  6. Subagents receive proper tool calls and execute normally
+OpenClaw sends request (stream: true, tools: [...])
+  → Proxy forces stream: false (can't extract tools from chunks)
+  → Forward to vLLM as non-streaming
+  → vLLM responds with JSON
+  → Proxy extracts tool calls from content (tags, bare JSON, multi-line)
+  → Proxy cleans vLLM-specific fields
+  → Proxy re-wraps as SSE stream
+  → OpenClaw receives proper streaming response with tool_calls
 ```
 
----
-
-## Supported Models
-
-The tool proxy works with any model that outputs tool calls in content instead of using the native OpenAI format:
-
-- **Qwen2.5-Coder** (all sizes) — outputs `<tools>` tags
-- **Qwen2.5 Instruct** (all sizes) — outputs `<tools>` tags
-- **Models outputting bare JSON** — detected automatically
-- Any future model with similar behavior
-
----
-
-## Troubleshooting
-
-### Proxy won't start — port in use
-```bash
-# Check what's using the port
-ss -tlnp | grep 8003
-# Kill the old process, then restart
-sudo systemctl restart vllm-tool-proxy
-```
-
-### Cleanup not running
-```bash
-# Check timer status
-systemctl status openclaw-session-cleanup.timer
-# Run manually to test
-bash ~/.openclaw/session-cleanup.sh
-```
-
-### Sessions still growing too large
-Lower `max_session_size` and `interval_minutes` in `config.yaml`, then reinstall:
-```bash
-./install.sh  # Re-running overwrites with new config
-```
-
-### Tool calls still not working
-1. Verify proxy is running: `curl http://localhost:8003/health`
-2. Verify `openclaw.json` points to proxy port, not vLLM directly
-3. Verify `api` is set to `openai-completions` (not `openai-responses`)
-4. Check proxy logs: `journalctl -u vllm-tool-proxy -f`
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full deep dive.
 
 ---
 
 ## Project Structure
 
 ```
-Local-Claw-Plus-Session-Manager/
-├── config.yaml                     # Configuration file
-├── install.sh                      # Linux installer
-├── install.ps1                     # Windows installer
+LightHeart-OpenClaw/
+├── config.yaml                         # Configuration (edit this first)
+├── install.sh                          # Linux installer
+├── install.ps1                         # Windows installer
+├── configs/
+│   ├── openclaw.json                   # Golden OpenClaw config template
+│   ├── models.json                     # Model definition with compat flags
+│   └── openclaw-gateway.service        # systemd service for OpenClaw gateway
 ├── scripts/
-│   ├── session-cleanup.sh          # Session cleanup script
-│   └── vllm-tool-proxy.py         # vLLM tool call proxy
+│   ├── session-cleanup.sh              # Session watchdog script
+│   ├── vllm-tool-proxy.py             # vLLM tool call proxy (v4)
+│   ├── start-vllm.sh                  # Start vLLM via Docker
+│   └── start-proxy.sh                 # Start the tool call proxy
+├── workspace/
+│   ├── SOUL.md                        # Agent personality template
+│   ├── IDENTITY.md                    # Agent identity template
+│   ├── TOOLS.md                       # Available tools reference
+│   └── MEMORY.md                      # Working memory template
 ├── systemd/
 │   ├── openclaw-session-cleanup.service
 │   ├── openclaw-session-cleanup.timer
 │   └── vllm-tool-proxy.service
-├── LICENSE
-└── README.md
+├── docs/
+│   ├── SETUP.md                       # Full local setup guide
+│   └── ARCHITECTURE.md                # How it all fits together
+└── LICENSE
 ```
+
+---
+
+## Supported Models
+
+The tool proxy works with any vLLM-compatible model. Tested with:
+
+| Model | VRAM | Tool Parser | Notes |
+|-------|------|-------------|-------|
+| Qwen/Qwen3-Coder-Next-FP8 | ~75GB | `qwen3_coder` | Best for coding agents. 80B MoE. |
+| Qwen2.5-Coder (all sizes) | 4-48GB | `hermes` | Outputs `<tools>` tags |
+| Qwen2.5 Instruct (all sizes) | 4-48GB | `hermes` | Outputs `<tools>` tags |
+| Qwen/Qwen3-8B | ~16GB | `hermes` | Good starter for consumer GPUs |
+
+The proxy handles tool call extraction regardless of format — `<tools>` tags, bare JSON, or multi-line JSON.
+
+---
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VLLM_MODEL` | `Qwen/Qwen3-Coder-Next-FP8` | HuggingFace model ID |
+| `VLLM_PORT` | `8000` | vLLM API port |
+| `VLLM_URL` | `http://localhost:8000` | vLLM base URL (for proxy) |
+| `PROXY_PORT` | `8003` | Tool call proxy port |
+| `MAX_TOOL_CALLS` | `500` | Safety limit for tool call loops |
+| `VLLM_GPU_UTIL` | `0.92` | GPU memory utilization |
+| `VLLM_MAX_LEN` | `131072` | Max context length |
+| `VLLM_VERSION` | `v0.15.1` | vLLM Docker image tag |
+| `VLLM_TOOL_PARSER` | `qwen3_coder` | Tool call parser |
+| `VLLM_API_KEY` | — | API key for OpenClaw (can be anything) |
+
+---
+
+## Troubleshooting
+
+See [docs/SETUP.md](docs/SETUP.md) for the full troubleshooting guide. Quick hits:
+
+| Problem | Fix |
+|---------|-----|
+| "No reply from agent" / 0 tokens | `baseUrl` must point to proxy (:8003), not vLLM (:8000) |
+| Config validation errors | Only use the four compat flags listed above |
+| Tool calls as plain text | Check proxy is running: `curl localhost:8003/health` |
+| Agent stuck in loop | Proxy aborts at 500 calls. Lower `MAX_TOOL_CALLS` if needed |
+| vLLM CUDA crash | Add `--compilation_config.cudagraph_mode=PIECEWISE` |
+| vLLM assertion error | Don't use `--kv-cache-dtype fp8` with Qwen3-Next |
 
 ---
 
 ## License
 
-MIT License — see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
 
 ---
 
-## Credits
-
-Built by [Lightheart Dev Studios](https://github.com/Lightheartdevs) from real production pain running autonomous AI agents on local hardware. If this saved your agents from crashing, give us a star.
+Built by [Lightheart Labs](https://github.com/Light-Heart-Labs) from real production pain running autonomous AI agents on local hardware.
