@@ -51,17 +51,48 @@ if ($Help) {
     exit 0
 }
 
-# ── Parse YAML (minimal parser) ───────────────────────────────
+# ── Parse YAML (section-aware parser) ─────────────────────────
+# Usage: Parse-Yaml "section.key" "default"  — reads key within a section
+#        Parse-Yaml "key" "default"           — reads top-level key (legacy)
 function Parse-Yaml {
-    param([string]$Key, [string]$Default)
+    param([string]$Input, [string]$Default)
     if (-not (Test-Path $Config)) { return $Default }
-    $match = Select-String -Path $Config -Pattern "^\s*${Key}:" | Select-Object -First 1
-    if ($match) {
-        $value = ($match.Line -split ":\s*", 2)[1].Trim().Trim('"').Trim("'")
-        $value = ($value -split "\s*#")[0].Trim()
-        if ($value -and $value -ne '""' -and $value -ne "''") { return $value }
+
+    $section = ""
+    $key = $Input
+    if ($Input -match "^(.+)\.(.+)$") {
+        $section = $Matches[1]
+        $key = $Matches[2]
     }
-    return $Default
+
+    if ($section) {
+        $lines = Get-Content $Config
+        $inSection = $false
+        foreach ($line in $lines) {
+            if ($line -match "^${section}:") {
+                $inSection = $true
+                continue
+            }
+            if ($inSection -and $line -match "^[a-zA-Z_]") {
+                break
+            }
+            if ($inSection -and $line -match "^\s+${key}:") {
+                $value = ($line -split ":\s*", 2)[1].Trim().Trim('"').Trim("'")
+                $value = ($value -split "\s*#")[0].Trim()
+                if ($value -and $value -ne '""' -and $value -ne "''") { return $value }
+                return $Default
+            }
+        }
+        return $Default
+    } else {
+        $match = Select-String -Path $Config -Pattern "^\s*${key}:" | Select-Object -First 1
+        if ($match) {
+            $value = ($match.Line -split ":\s*", 2)[1].Trim().Trim('"').Trim("'")
+            $value = ($value -split "\s*#")[0].Trim()
+            if ($value -and $value -ne '""' -and $value -ne "''") { return $value }
+        }
+        return $Default
+    }
 }
 
 # ── Load config ────────────────────────────────────────────────
@@ -73,26 +104,29 @@ if (-not (Test-Path $Config)) {
 
 Info "Loading config from $Config"
 
-$OpenClawDir = Parse-Yaml "openclaw_dir" "$env:USERPROFILE\.openclaw"
+# Session cleanup settings
+$OpenClawDir = Parse-Yaml "session_cleanup.openclaw_dir" "$env:USERPROFILE\.openclaw"
 $OpenClawDir = $OpenClawDir -replace "^~", $env:USERPROFILE
-$SessionsPath = Parse-Yaml "sessions_path" "agents\main\sessions"
-$MaxSessionSize = Parse-Yaml "max_session_size" "256000"
-$IntervalMinutes = Parse-Yaml "interval_minutes" "60"
-$ProxyPort = Parse-Yaml "port" "8003"
-$VllmUrl = Parse-Yaml "vllm_url" "http://localhost:8000"
+$SessionsPath = Parse-Yaml "session_cleanup.sessions_path" "agents\main\sessions"
+$MaxSessionSize = Parse-Yaml "session_cleanup.max_session_size" "256000"
+$IntervalMinutes = Parse-Yaml "session_cleanup.interval_minutes" "60"
+
+# Proxy settings
+$ProxyPort = Parse-Yaml "tool_proxy.port" "8003"
+$VllmUrl = Parse-Yaml "tool_proxy.vllm_url" "http://localhost:8000"
 
 $SessionsDir = Join-Path $OpenClawDir $SessionsPath
 
 # Token Spy settings
-$TsEnabled = Parse-Yaml "enabled" "false"
-$TsAgentName = Parse-Yaml "agent_name" "my-agent"
-$TsPort = Parse-Yaml "port" "9110"
-$TsHost = Parse-Yaml "host" "0.0.0.0"
-$TsAnthropicUpstream = Parse-Yaml "anthropic_upstream" "https://api.anthropic.com"
-$TsOpenaiUpstream = Parse-Yaml "openai_upstream" ""
-$TsApiProvider = Parse-Yaml "api_provider" "anthropic"
-$TsDbBackend = Parse-Yaml "db_backend" "sqlite"
-$TsSessionCharLimit = Parse-Yaml "session_char_limit" "200000"
+$TsEnabled = Parse-Yaml "token_spy.enabled" "false"
+$TsAgentName = Parse-Yaml "token_spy.agent_name" "my-agent"
+$TsPort = Parse-Yaml "token_spy.port" "9110"
+$TsHost = Parse-Yaml "token_spy.host" "0.0.0.0"
+$TsAnthropicUpstream = Parse-Yaml "token_spy.anthropic_upstream" "https://api.anthropic.com"
+$TsOpenaiUpstream = Parse-Yaml "token_spy.openai_upstream" ""
+$TsApiProvider = Parse-Yaml "token_spy.api_provider" "anthropic"
+$TsDbBackend = Parse-Yaml "token_spy.db_backend" "sqlite"
+$TsSessionCharLimit = Parse-Yaml "token_spy.session_char_limit" "200000"
 
 Write-Host ""
 Info "Configuration:"
@@ -259,7 +293,7 @@ Write-Output "[`$(Get-Date)] Cleanup complete: removed `$removedInactive inactiv
     }
 
     $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$CleanupScript`""
-    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes)
+    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes) -RepetitionDuration ([TimeSpan]::MaxValue)
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
     $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType S4U -RunLevel Limited
 
