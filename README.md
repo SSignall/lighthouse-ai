@@ -1,10 +1,29 @@
 # LightHeart OpenClaw
 
-**Keep your AI agents running. No matter what they do to themselves.**
+**A methodology for building persistent AI agent teams that actually work.**
 
-An open source operations toolkit for persistent LLM agents. Built for [OpenClaw](https://openclaw.io) but many components work with any agent framework or service stack.
+Patterns, tools, and battle-tested operational knowledge for running AI agents
+that stay up for hours, days, and weeks — coordinating with each other, learning
+from failures, and shipping real software. Built from production experience
+running 3+ agents 24/7 on local hardware.
 
-This toolkit is the infrastructure layer of a proven multi-agent architecture — the [OpenClaw Collective](COLLECTIVE.md) — where 3 AI agents coordinate autonomously on shared projects using local GPU hardware. The companion repository **Android-Labs** (private) is the proof of work: 3,464 commits from 3 agents over 8 days, producing three shipping products and 50+ technical research documents. These tools kept them running.
+About 70% of this repository is framework-agnostic. The patterns for identity,
+memory, coordination, autonomy, and observability apply to any agent system —
+Claude Code, LangChain, AutoGPT, custom agents, or anything else that runs long
+enough to accumulate state. The remaining 30% is a reference implementation
+using [OpenClaw](https://openclaw.io) and vLLM that demonstrates the patterns
+concretely.
+
+This is the infrastructure layer of a proven multi-agent architecture — the
+[OpenClaw Collective](COLLECTIVE.md) — where 3 AI agents coordinate
+autonomously on shared projects using local GPU hardware. The companion
+repository **Android-Labs** (private) is the proof of work: 3,464 commits from
+3 agents over 8 days, producing three shipping products and 50+ technical
+research documents. These tools kept them running.
+
+**Start here:** [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) — the conceptual
+foundation, five pillars, complete failure taxonomy, and a reading map based on
+what you're building.
 
 | Component | What it does | Requires OpenClaw? | Platform |
 |-----------|-------------|-------------------|----------|
@@ -20,42 +39,57 @@ This toolkit is the infrastructure layer of a proven multi-agent architecture �
 
 ## What's Inside
 
-### Session Watchdog
-A lightweight daemon that monitors `.jsonl` session files and automatically cleans up bloated ones before they hit the context ceiling. Runs on a timer, catches danger-zone sessions, deletes them, and removes their references from `sessions.json` so the gateway seamlessly creates fresh ones.
+### The Methodology
 
-**The agent doesn't even notice.** It just gets a clean context window mid-conversation. No more `Context overflow: prompt too large for the model` crashes.
+These docs capture what we learned running persistent agent teams. They apply to
+any framework.
 
-### vLLM Tool Call Proxy (v4)
-A transparent proxy between OpenClaw and vLLM that makes local model tool calling actually work. Handles SSE re-wrapping, tool call extraction from text, response cleaning, and loop protection.
+| Doc | What It Covers |
+|-----|---------------|
+| [PHILOSOPHY.md](docs/PHILOSOPHY.md) | **Start here.** Five pillars of persistent agents, failure taxonomy, reading map, framework portability guide |
+| [WRITING-BASELINES.md](memory-shepherd/docs/WRITING-BASELINES.md) | How to define agent identity that survives resets and drift |
+| [MULTI-AGENT-PATTERNS.md](docs/MULTI-AGENT-PATTERNS.md) | Coordination protocols, reliability math, sub-agent spawning, echo chamber prevention, supervisor pattern |
+| [OPERATIONAL-LESSONS.md](docs/OPERATIONAL-LESSONS.md) | Silent failures, memory management, tool calling reliability, production safety, background GPU automation |
+| [GUARDIAN.md](docs/GUARDIAN.md) | Infrastructure protection, autonomy tiers, immutable watchdogs, defense in depth |
 
-Without it, you get "No reply from agent" with 0 tokens. With it, your local agents just work.
+### The Reference Implementation (OpenClaw + vLLM)
 
-### Token Spy — API Cost & Usage Monitor
-A transparent API proxy that captures per-turn token usage, cost, latency, and session health for cloud model calls (Anthropic, OpenAI, Moonshot). Point your agent's `baseUrl` at Token Spy instead of the upstream API — it logs everything, then forwards requests and responses untouched, including SSE streams.
+Working tools that implement the methodology. Use them directly or adapt the
+patterns to your stack.
 
-Includes a real-time dashboard with session health cards, cost charts, token breakdown, and cumulative spend tracking. Can auto-kill sessions that exceed a configurable character limit. Works with any OpenAI-compatible or Anthropic API client.
+**Session Watchdog** — Monitors `.jsonl` session files and cleans up bloated
+ones before they hit the context ceiling. The agent doesn't notice — it just
+gets a clean context window mid-conversation.
 
-### Golden Configs
-Battle-tested `openclaw.json` and `models.json` templates with the critical `compat` block that prevents OpenClaw from sending parameters vLLM silently rejects. Getting these four flags wrong produces mysterious failures with no error messages — we figured them out so you don't have to.
+**vLLM Tool Call Proxy (v4)** — Transparent proxy between OpenClaw and vLLM
+that makes local model tool calling work. Handles SSE re-wrapping, tool call
+extraction from text, response cleaning, and loop protection.
 
-### Workspace Templates
-Starter personality files (`SOUL.md`, `IDENTITY.md`, `TOOLS.md`, `MEMORY.md`) that OpenClaw injects into every agent session. Customize your agent's personality, knowledge, and working memory.
+**Token Spy** — Transparent API proxy that captures per-turn token usage, cost,
+latency, and session health for cloud model calls (Anthropic, OpenAI, Moonshot).
+Real-time dashboard with session health cards, cost charts, and auto-kill for
+sessions exceeding configurable limits. Works with any OpenAI-compatible or
+Anthropic API client.
 
-### Memory Shepherd
-Periodic memory reset for persistent LLM agents. Agents accumulate scratch notes in `MEMORY.md` during operation — Memory Shepherd archives those notes and restores the file to a curated baseline on a schedule. Keeps agents on-mission by preventing context drift, memory bloat, and self-modification of instructions.
+**Memory Shepherd** — Periodic memory reset for persistent agents. Archives
+scratch notes and restores MEMORY.md to a curated baseline on a schedule.
+Defines the `---` separator convention: operator-controlled identity above,
+agent scratch space below.
 
-Defines a `---` separator convention: everything above is operator-controlled identity (rules, capabilities, pointers), everything below is agent scratch space that gets archived and cleared. See [memory-shepherd/README.md](memory-shepherd/README.md) for full documentation.
+**Guardian** — Self-healing process watchdog for LLM infrastructure. Runs as a
+root systemd service that agents cannot kill or modify. Monitors processes,
+systemd services, Docker containers, and file integrity — automatically
+restoring from known-good backups when things break. Supports tiered health
+checks, recovery cascades, and generational backups. See
+[guardian/README.md](guardian/README.md) for full documentation.
 
-### Guardian
-Self-healing process watchdog for LLM infrastructure. Runs as a root systemd service that agents cannot kill or modify. Monitors processes, systemd services, Docker containers, and file integrity — automatically restoring from known-good backups when things break.
+**Golden Configs** — Battle-tested `openclaw.json` and `models.json` with the
+critical `compat` block that prevents silent failures. Workspace templates for
+agent personality, identity, tools, and working memory.
 
-Supports tiered health checks (port listening, HTTP endpoints, custom commands, JSON validation), a recovery cascade (soft restart → backup restore → restart), generational backups with immutable flags, and restart delegation chains. Everything is config-driven via an INI file. See [guardian/README.md](guardian/README.md) for full documentation.
-
-### Architecture Docs
-Deep-dive documentation on how OpenClaw talks to vLLM, why the proxy exists, how session files work, and the five failure points that kill local setups.
-
-### Operational Guides
-Lessons learned from running agents 24/7, multi-agent coordination patterns, and infrastructure protection strategies — all discovered by persistent agents running on local hardware. See the [docs/](docs/) directory.
+**Architecture Docs** — How OpenClaw talks to vLLM, why the proxy exists, how
+session files work, and the five failure points that kill local setups.
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) and [SETUP.md](docs/SETUP.md).
 
 ---
 
@@ -350,6 +384,7 @@ LightHeart-OpenClaw/
 │   └── docs/
 │       └── HEALTH-CHECKS.md           # Health check & recovery reference
 ├── docs/
+│   ├── PHILOSOPHY.md                  # Start here — pillars, failures, reading map
 │   ├── SETUP.md                       # Full local setup guide
 │   ├── ARCHITECTURE.md                # How it all fits together
 │   ├── TOKEN-SPY.md                   # Token Spy setup & API reference
@@ -439,4 +474,4 @@ Apache 2.0 — see [LICENSE](LICENSE)
 
 ---
 
-Built by [Lightheart Labs](https://github.com/Light-Heart-Labs) and the [OpenClaw Collective](COLLECTIVE.md) from real production pain running autonomous AI agents on local hardware.
+Built from production experience by [Lightheart Labs](https://github.com/Light-Heart-Labs) and the [OpenClaw Collective](COLLECTIVE.md). The patterns were discovered by the agents. The docs were written by the agents. The lessons were learned the hard way.
