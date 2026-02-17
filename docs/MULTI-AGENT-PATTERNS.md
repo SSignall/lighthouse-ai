@@ -294,3 +294,124 @@ files:
 
 Keep coordination files small and focused. An agent reading STATUS.md should
 know in 10 seconds what's happening and what's blocked.
+
+---
+
+## The Supervisor Pattern
+
+In a multi-agent system, one agent should be the manager — not writing code,
+but keeping the team healthy and the human informed. This is a fundamentally
+different role than the worker agents.
+
+### What a Supervisor Does
+
+```
+Every 15 minutes:
+  1. Check git logs — is each agent making commits?
+  2. Check session health — is anyone's context bloated?
+  3. Check for stuck agents — has anyone been quiet too long?
+  4. Post a situation report to the shared channel
+  5. Trigger session resets for confused or bloated agents
+
+Daily (e.g., 6am):
+  6. Gather health metrics, spending data, commit counts, error logs
+  7. Compile a comprehensive briefing for the human operator
+  8. Include: what happened, what broke, what it cost, what needs attention
+```
+
+### Why a Separate Agent
+
+The supervisor needs a different model and different priorities than the
+workers:
+
+| Property | Worker Agents | Supervisor Agent |
+|---|---|---|
+| Primary model | Local (free, high volume) | Cloud (reliable, high judgment) |
+| Core activity | Writing code, running tests | Monitoring, reporting, resetting |
+| Failure mode | Gets stuck, loops, drifts | Must be reliable above all else |
+| Autonomy | Tier 0-1 (mostly autonomous) | Tier 2 (speaks with operator authority) |
+| Communication | Pushes code, posts to branches | DMs the human, posts ops reports |
+
+The supervisor should run on the most capable model you have — its job is
+judgment, not volume. A cheap model that misses a stuck agent costs more than
+an expensive model that catches it.
+
+### Supervisor Responsibilities
+
+**Health monitoring:**
+- Track commit frequency per agent (no commits for 2+ hours = investigate)
+- Monitor session file sizes (approaching context limit = trigger reset)
+- Watch for error patterns in logs (repeated timeouts = GPU contention)
+
+**Session management:**
+- Trigger session resets when agents get confused or bloated
+- The supervisor has authority to reset any worker agent's session
+- Resets are non-destructive — Memory Shepherd restores the baseline
+
+**Daily briefing:**
+- Compile 24h metrics: commits, costs, errors, uptime per agent
+- Highlight anomalies: cost spikes, idle agents, repeated failures
+- Include actionable items: "Agent X has been stuck since 3pm, needs
+  manual intervention"
+
+**Report cards:**
+- Periodic assessment of each agent's effectiveness
+- Are they completing tasks? Are they making mistakes? Are they idle?
+- Feed back into baseline updates (see
+  [WRITING-BASELINES.md](../memory-shepherd/docs/WRITING-BASELINES.md))
+
+### The Supervisor Is Protected
+
+The supervisor should be protected by the Guardian (see
+[GUARDIAN.md](GUARDIAN.md)) at the same tier as the agent gateways. If the
+supervisor goes down, nobody is watching the workers.
+
+The supervisor should NOT have write access to the same infrastructure the
+workers use. Its job is to observe and command, not to modify configs or
+restart services directly — that's the Guardian's job.
+
+---
+
+## A Typical Hour
+
+Here's what a healthy multi-agent system looks like in practice:
+
+```
+:00  Agent A is designing a new API endpoint. Spawns 3 sub-agents on
+     the local GPU: one for the handler, one for tests, one for docs.
+     All three run simultaneously at $0.
+
+:02  Agent B picks up Agent A's PR. Runs integration checks. Posts
+     review comments on the branch.
+
+:05  Agent C is grinding through a refactoring task entirely on the
+     local model. Commits every few minutes.
+
+:05  The commit watchdog (background) reviews Agent C's latest commit.
+     Posts "LGTM, no issues" to the shared channel.
+
+:10  Agent A's sub-agents finish. Handler, tests, and docs all written
+     in parallel. Agent A assembles the PR.
+
+:15  Supervisor checks in. Pulls git logs, checks session health.
+     Agent C's session is at 180KB — approaching the 256KB limit.
+     Supervisor posts: "Agent C session at 70%, will auto-reset at 100%."
+
+:20  Session watchdog fires. Agent C's session exceeds the threshold.
+     Watchdog deletes the session file, gateway creates a fresh one.
+     Agent C continues working — doesn't notice the swap.
+
+:30  Supervisor checks in again. All three agents active. Commits
+     flowing. No errors. Posts a green status report.
+
+:45  Agent B finishes integration tests. Merges Agent A's PR to main.
+     Agent C pulls latest, sees the new code.
+
+:60  Guardian runs its 60-second check. All services healthy, all
+     protected files intact. No action needed.
+```
+
+**The key insight:** Most of the time, nothing dramatic happens. The system
+runs itself. The value of the supervisor, guardian, and watchdog is in the
+5% of the time when something goes wrong — and it gets caught and fixed
+automatically instead of silently degrading for hours.
